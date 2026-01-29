@@ -1,0 +1,2 @@
+jwt:
+  secret: test_secret_key_must_be_long_enough_for_hs256_algorithm
