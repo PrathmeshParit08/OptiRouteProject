@@ -16,4 +16,16 @@ public class User {
 
     @Column(nullable = false)
     private String password;
+
+    @Column(unique = true, nullable = false)
+    private String email;
+
+    @Column(nullable = false)
+    private String mobileNumber;
+
+    @Column(nullable = false)
+    private String securityQuestion;
+
+    @Column(nullable = false)
+    private String securityAnswer;
 }
