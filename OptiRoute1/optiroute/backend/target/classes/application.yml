@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: 8080
 
 spring:
   application:
@@ -9,7 +9,11 @@ spring:
     username: ${DB_USER:root}
     password: ${DB_PASS:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: always  # changed - > creates tables first after starting of container
   jpa:
+    defer-datasource-initialization: true  # changed to avoid memory leakage
     hibernate:
       ddl-auto: update
     show-sql: true

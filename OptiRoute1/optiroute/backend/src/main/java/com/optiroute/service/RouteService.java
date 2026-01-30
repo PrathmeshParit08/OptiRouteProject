@@ -1,16 +1,17 @@
 package com.optiroute.service;
 
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 import com.optiroute.dto.RouteOption;
 import com.optiroute.dto.RouteSuggestionResponse;
 import com.optiroute.model.DirectRoute;
 import com.optiroute.repository.DirectRouteRepository;
 import com.optiroute.repository.LocationRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
-import java.util.Comparator;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class RouteService {
@@ -22,20 +23,28 @@ public class RouteService {
     private LocationRepository locationRepository;
 
     public RouteSuggestionResponse getSuggestions(String fromCity, String toCity) {
-        var fromLocation = locationRepository.findByName(fromCity)
-                .orElseThrow(() -> new RuntimeException("From Location not found"));
-        var toLocation = locationRepository.findByName(toCity)
-                .orElseThrow(() -> new RuntimeException("To Location not found"));
 
-        List<DirectRoute> routes = directRouteRepository.findByFromLocationAndToLocation(fromLocation, toLocation);
+        var fromLocation = locationRepository.findByNameIgnoreCase(fromCity)
+                .orElseThrow(() -> new RuntimeException("From Location not found: " + fromCity));
+
+        var toLocation = locationRepository.findByNameIgnoreCase(toCity)
+                .orElseThrow(() -> new RuntimeException("To Location not found: " + toCity));
+
+        List<DirectRoute> routes =
+                directRouteRepository.findByFromLocationAndToLocation(fromLocation, toLocation);
 
         if (routes.isEmpty()) {
-            return RouteSuggestionResponse.builder().otherRoutes(List.of()).build();
+            return RouteSuggestionResponse.builder()
+                    .bestRoute(null)
+                    .otherRoutes(List.of())
+                    .build();
         }
 
-        List<RouteOption> options = routes.stream().map(this::mapToOption).collect(Collectors.toList());
+        List<RouteOption> options = routes.stream()
+                .map(this::mapToOption)
+                .collect(Collectors.toList());
 
-        // Calculate efficiency score and sort
+        // Sort by efficiency (Lowest score is best)
         options.sort(Comparator.comparingDouble(RouteOption::getEfficiencyScore));
 
         RouteOption bestRoute = options.get(0);
@@ -51,7 +60,9 @@ public class RouteService {
     }
 
     private RouteOption mapToOption(DirectRoute route) {
-        double efficiencyScore = (route.getDurationMinutes() * 0.6) + (route.getCost() * 0.4);
+        double efficiencyScore =
+                (route.getDurationMinutes() * 0.6) + (route.getCost() * 0.4);
+
         return RouteOption.builder()
                 .routeId(route.getId())
                 .transportType(route.getTransportType().name())

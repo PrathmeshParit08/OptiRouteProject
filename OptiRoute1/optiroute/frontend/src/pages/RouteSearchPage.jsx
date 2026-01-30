@@ -9,14 +9,18 @@ const RouteSearchPage = () => {
     const navigate = useNavigate();
 
     const searchRoutes = async (e) => {
-        e.preventDefault();
-        try {
-            const response = await api.post(`/routes/suggest?from=${from}&to=${to}`);
-            setResults(response.data);
-        } catch (error) {
-            alert('Error fetching routes');
-        }
-    };
+    e.preventDefault();
+    try {
+        // Change from .post to .get to match your Controller
+        const response = await api.get('/routes/suggest', { 
+            params: { from, to } 
+        });
+        setResults(response.data);
+    } catch (error) {
+        console.error("Search Error:", error.response?.data || error.message);
+        alert('Error fetching routes');
+    }
+};
 
     const handleSelect = async (routeId) => {
         try {

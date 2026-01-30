@@ -1,12 +1,24 @@
 package com.optiroute.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class PaymentInitiationRequest {
     private Long routeId;
+
+    // Default Constructor
+    public PaymentInitiationRequest() {
+    }
+
+    // All Arguments Constructor
+    public PaymentInitiationRequest(Long routeId) {
+        this.routeId = routeId;
+    }
+
+    // Getter
+    public Long getRouteId() {
+        return routeId;
+    }
+
+    // Setter
+    public void setRouteId(Long routeId) {
+        this.routeId = routeId;
+    }
 }
