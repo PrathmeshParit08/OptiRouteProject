@@ -36,16 +36,14 @@ public class RouteService {
                                 .orElseThrow(() -> new RuntimeException("To Location not found: " + toCity));
 
                 // 1. Find routes covering this segment
-                // Strategy: Find all stops for 'from', all stops for 'to', intersect on routeId
-                // and check order
+             
                 List<com.optiroute.model.RouteStop> startStops = routeStopRepository
                                 .findByLocationId(fromLocation.getId());
                 List<com.optiroute.model.RouteStop> endStops = routeStopRepository.findByLocationId(toLocation.getId());
 
                 List<DirectRoute> potentialRoutes = new java.util.ArrayList<>();
 
-                // Check direct routes (legacy check ensuring backward compatibility if stops
-                // not populated)
+                // Check direct route
                 potentialRoutes.addAll(directRouteRepository.findByFromLocationAndToLocation(fromLocation, toLocation));
 
                 // Check segmented routes
@@ -63,7 +61,7 @@ public class RouteService {
                 potentialRoutes = potentialRoutes.stream().distinct().collect(Collectors.toList());
 
                 if (potentialRoutes.isEmpty()) {
-                        // Keep empty list or try fallback logic if needed
+                        
                 }
 
                 List<RouteOption> options = potentialRoutes.stream()
@@ -102,7 +100,7 @@ public class RouteService {
                 double finalCost = route.getCost();
                 int finalDuration = route.getDurationMinutes();
 
-                // If stops are present, calculate segment specific cost/duration
+                // If stops are present
                 if (!route.getStops().isEmpty()) {
                         com.optiroute.model.RouteStop startStop = route.getStops().stream()
                                         .filter(s -> s.getLocation().getId().equals(from.getId())).findFirst()
@@ -112,9 +110,8 @@ public class RouteService {
                                         .orElse(null);
 
                         if (startStop != null && endStop != null) {
-                                // Simplistic linear interpolation model for now
-                                // In real world, use distFromStartKm difference
-                                // Cost = (Segments Traveled / Total Stops) * Total Cost ?
+                               
+                                // Cost = (Segments Traveled / Total Stops) * Total Cost 
                                 // Or better: (endStopOrder - startStopOrder) / (MaxOrder)
 
                                 int segmentsTraveled = endStop.getStopOrder() - startStop.getStopOrder();
@@ -153,14 +150,14 @@ public class RouteService {
                         maxTime = minTime + 1;
 
                 for (RouteOption opt : options) {
-                        // Normalize (0 to 1, where 0 is best)
+                        /
                         // Normalized Cost = (Cost - Min) / (Max - Min)
                         double normCost = (opt.getCost() - minCost) / (maxCost - minCost);
 
                         // Normalized Time = (Time - Min) / (Max - Min)
                         double normTime = (opt.getDurationMinutes() - minTime) / (maxTime - minTime);
 
-                        // Efficiency = Weighted Sum (Lower is better)
+                        // Efficiency = Weighted Sum 
                         double score = (timeWeight * normTime) + (costWeight * normCost);
                         opt.setEfficiencyScore(score);
                 }
