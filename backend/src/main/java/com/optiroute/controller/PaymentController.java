@@ -19,4 +19,11 @@ public class PaymentController {
     public ResponseEntity<PaymentRedirectResponse> initiatePayment(@RequestBody PaymentInitiationRequest request) {
         return ResponseEntity.ok(paymentService.initiatePayment(request.getRouteId()));
     }
+    @PostMapping("/confirm/{paymentId}")
+public ResponseEntity<String> confirmPayment(@PathVariable Long paymentId) {
+
+    paymentService.confirmPayment(paymentId);
+
+    return ResponseEntity.ok("PAYMENT_CONFIRMED");
+}
 }

@@ -10,6 +10,7 @@ import com.optiroute.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.optiroute.model.RouteStop;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -47,7 +48,7 @@ public class BookingService {
                         Integer eOrder = null;
                         int maxOrder = 0;
 
-                        for (com.optiroute.model.RouteStop stop : route.getStops()) {
+                        for (RouteStop stop : route.getStops()) {
                                 if (stop.getStopOrder() > maxOrder)
                                         maxOrder = stop.getStopOrder();
 
@@ -75,7 +76,7 @@ public class BookingService {
                 }
 
                 // 2. Check Segment Capacity
-                java.util.List<Booking> existingBookings = bookingRepository
+                List<Booking> existingBookings = bookingRepository
                                 .findByDirectRouteAndStatusAndJourneyDate(route, "CONFIRMED", request.getJourneyDate());
 
                 for (int k = startOrder; k < endOrder; k++) {

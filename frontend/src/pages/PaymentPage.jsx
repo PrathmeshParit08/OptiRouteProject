@@ -74,39 +74,52 @@ const PaymentPage = () => {
         return true;
     };
 
-    const handlePay = (e) => {
-        e.preventDefault();
+    const handlePay = async (e) => {
+    e.preventDefault();
 
-        if (!validatePayment()) {
-            return;
-        }
+    // Step 1: Validate payment details
+    if (!validatePayment()) return;
 
-        setLoading(true);
-        // Simulate payment processing
-        setTimeout(async () => {
-            try {
-                if (routeId && date) {
-                    await api.post('/bookings/create', {
-                        routeId: parseInt(routeId),
-                        journeyDate: date,
-                        fromCity: fromCity,
-                        toCity: toCity
-                    });
-                    showPopup('Payment Successful! Ticket Booked.', 'success');
-                    setLoading(false);
-                    navigate('/bookings'); // Navigate to bookings page
-                } else {
-                    showPopup('Payment Successful! Ticket Booked (Simulation).', 'success');
-                    setLoading(false);
-                    navigate('/search');
-                }
-            } catch (error) {
-                console.error("Booking error:", error);
-                showPopup('Payment successful but booking failed: ' + (error.response?.data || error.message), 'error');
-                setLoading(false);
+    setLoading(true);
+
+    // Step 2: Simulate payment processing delay
+    setTimeout(async () => {
+        try {
+            // Step 3: (Optional) Call backend payment initiation
+            if (routeId) {
+                await api.post('/payment/initiate', {
+                    routeId: parseInt(routeId)
+                });
             }
-        }, 2000);
-    };
+
+            // Step 4: Create booking only after payment success
+            if (routeId && date) {
+                await api.post('/bookings/create', {
+                    routeId: parseInt(routeId),
+                    journeyDate: date,
+                    fromCity: fromCity,
+                    toCity: toCity
+                });
+
+                showPopup('Payment Successful! Ticket Booked.', 'success');
+                navigate('/bookings');
+            } else {
+                // Fallback for demo mode
+                showPopup('Payment Successful (Simulation Mode).', 'success');
+                navigate('/search');
+            }
+        } catch (error) {
+            console.error('Payment/Booking error:', error);
+            showPopup(
+                'Payment successful but booking failed',
+                'error'
+            );
+        } finally {
+            setLoading(false);
+        }
+    }, 2000); // 2-second simulated gateway delay
+};
+
 
     const handleChange = (e) => {
         const { name, value } = e.target;
