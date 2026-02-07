@@ -1,210 +1,154 @@
 package com.optiroute.service;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
 
 import com.optiroute.dto.RouteOption;
 import com.optiroute.dto.RouteSuggestionResponse;
 import com.optiroute.model.DirectRoute;
-import com.optiroute.repository.DirectRouteRepository;
+import com.optiroute.model.Location;
 import com.optiroute.model.RouteStop;
+import com.optiroute.repository.DirectRouteRepository;
+import com.optiroute.repository.RouteStopRepository;
 
 @Service
 public class RouteService {
 
-        @Autowired
-        private DirectRouteRepository directRouteRepository;
+    @Autowired
+    private DirectRouteRepository directRouteRepository;
 
-        @Autowired
-        private com.optiroute.repository.RouteStopRepository routeStopRepository;
+    @Autowired
+    private RouteStopRepository routeStopRepository;
 
-        @Autowired
-        private LocationService locationService;
+    @Autowired
+    private LocationService locationService;
 
-        @Cacheable(value = "routes", key = "#fromCity.toLowerCase() + '-' + #toCity.toLowerCase() + '-' + #timeWeight + '-' + #costWeight")
-        public RouteSuggestionResponse getSuggestions(String fromCity, String toCity, Double timeWeight,
-                        Double costWeight) {
+    @Cacheable(
+        value = "routes",
+        key = "#fromCity.toLowerCase() + '-' + #toCity.toLowerCase() + '-' + #timeWeight + '-' + #costWeight"
+    )
+    public RouteSuggestionResponse getSuggestions(
+            String fromCity,
+            String toCity,
+            Double timeWeight,
+            Double costWeight) {
 
-                var fromLocation = locationService.findByNameIgnoreCase(fromCity)
-                                .orElseThrow(() -> new RuntimeException("From Location not found: " + fromCity));
+        Location fromLocation = locationService.findByNameIgnoreCase(fromCity)
+                .orElseThrow(() -> new RuntimeException("From location not found: " + fromCity));
 
-                var toLocation = locationService.findByNameIgnoreCase(toCity)
-                                .orElseThrow(() -> new RuntimeException("To Location not found: " + toCity));
+        Location toLocation = locationService.findByNameIgnoreCase(toCity)
+                .orElseThrow(() -> new RuntimeException("To location not found: " + toCity));
 
-                // 1. Find routes covering this segment
-             
-                List<com.optiroute.model.RouteStop> startStops = routeStopRepository
-                                .findByLocationId(fromLocation.getId());
-                List<com.optiroute.model.RouteStop> endStops = routeStopRepository.findByLocationId(toLocation.getId());
+        List<RouteOption> options = new ArrayList<>();
 
-                List<DirectRoute> potentialRoutes = new java.util.ArrayList<>();
+        // 🔹 Fetch all routes (traditional approach)
+        List<DirectRoute> allRoutes = directRouteRepository.findAll();
 
-                // Check direct route
-                potentialRoutes.addAll(directRouteRepository.findByFromLocationAndToLocation(fromLocation, toLocation));
+        for (DirectRoute route : allRoutes) {
 
-                // Check segmented routes
-                for (com.optiroute.model.RouteStop start : startStops) {
-                        for (com.optiroute.model.RouteStop end : endStops) {
-                                if (start.getDirectRoute().getId().equals(end.getDirectRoute().getId())) {
-                                        if (start.getStopOrder() < end.getStopOrder()) {
-                                                potentialRoutes.add(start.getDirectRoute());
-                                        }
-                                }
-                        }
+            RouteStop startStop = null;
+            RouteStop endStop = null;
+
+            // Identify stops inside the SAME route
+            for (RouteStop stop : route.getStops()) {
+                if (stop.getLocation().getId().equals(fromLocation.getId())) {
+                    startStop = stop;
                 }
-
-                // Remove duplicates
-                potentialRoutes = potentialRoutes.stream().distinct().collect(Collectors.toList());
-
-                if (potentialRoutes.isEmpty()) {
-                        
+                if (stop.getLocation().getId().equals(toLocation.getId())) {
+                    endStop = stop;
                 }
+            }
 
-                List<RouteOption> options = potentialRoutes.stream()
-                                .map(route -> mapToOption(route, fromLocation, toLocation, timeWeight, costWeight))
-                                .collect(Collectors.toList());
+            // Route qualifies only if it covers the segment in order
+            if (startStop != null && endStop != null &&
+                    startStop.getStopOrder() < endStop.getStopOrder()) {
 
-                if (options.isEmpty()) {
-                        return RouteSuggestionResponse.builder()
-                                        .bestRoute(null)
-                                        .otherRoutes(List.of())
-                                        .build();
-                }
-
-                // Normalize and Calculate Efficiency Score
-                normalizeAndScore(options, timeWeight, costWeight);
-
-
-                RouteOption bestRoute=null;
-                for(RouteOption option:options){
-                        if(bestRoute==null){
-                                bestRoute=option;
-                        }else if(bestRoute.getEfficiencyScore()<option.getEfficiencyScore()){
-                                bestRoute=option;
-                        }
-                }
-                
-                options.remove(bestRoute);
-               options.sort(new Comparator<RouteOption>() {
-                         @Override
-                        public int compare(RouteOption a, RouteOption b) {
-                                return a.getDurationMinutes() - b.getDurationMinutes();
-                                                                        }
-                                                        });
-
-                List<RouteOption> otherRoutes = options;
-
-
-                // Sort other routes by cost
-                otherRoutes.sort(Comparator.comparingDouble(RouteOption::getCost));
-
-                return RouteSuggestionResponse.builder()
-                                .bestRoute(bestRoute)
-                                .otherRoutes(otherRoutes)
-                                .build();
+                options.add(mapToOption(route, startStop, endStop));
+            }
         }
 
-        private RouteOption mapToOption(DirectRoute route, com.optiroute.model.Location from,
-                        com.optiroute.model.Location to, Double timeWeight, Double costWeight) {
-
-                // Default full route values
-                double finalCost = route.getCost();
-                int finalDuration = route.getDurationMinutes();
-
-                // If stops are present
-                if (!route.getStops().isEmpty()) {
-                        RouteStop startStop = null;
-                        RouteStop endStop = null;
-
-                        for (RouteStop stop : route.getStops()) {
-                        if (stop.getLocation().getId().equals(from.getId())) {
-                                startStop = stop;
-                        } else if (stop.getLocation().getId().equals(to.getId())) {
-                                endStop = stop;
-                        }
-
-                        // Early exit if both found
-                        if (startStop != null && endStop != null) {
-                                break;
-                        }
-                        }
-
-
-                        if (startStop != null && endStop != null) {
-                               
-                                // Cost = (Segments Traveled / Total Stops) * Total Cost 
-                                // Or better: (endStopOrder - startStopOrder) / (MaxOrder)
-
-                                int segmentsTraveled = endStop.getStopOrder() - startStop.getStopOrder();
-                                int totalSegments = route.getStops().size() - 1; // n stops = n-1 segments
-                                if (totalSegments > 0) {
-                                        double ratio = (double) segmentsTraveled / totalSegments;
-                                        finalCost = route.getCost() * ratio;
-                                        finalDuration = (int) (route.getDurationMinutes() * ratio);
-                                }
-                        }
-                }
-
-                // Note: Score will be calculated later after normalization
-                return RouteOption.builder()
-                                .routeId(route.getId())
-                                .transportType(route.getTransportType().name())
-                                .durationMinutes(finalDuration)
-                                .cost(finalCost)
-                                .efficiencyScore(0.0) // Placeholder
-                                .operator(route.getOperator())
-                                .build();
+        if (options.isEmpty()) {
+            return RouteSuggestionResponse.builder()
+                    .bestRoute(null)
+                    .otherRoutes(List.of())
+                    .build();
         }
 
-        private void normalizeAndScore(List<RouteOption> options, Double timeWeight, Double costWeight) {
-                if (options.isEmpty())
-                        return;
+        // 🔹 Normalize and score
+        normalizeAndScore(options, timeWeight, costWeight);
 
-                double minCost = Double.MAX_VALUE;
-                double maxCost = Double.MIN_VALUE;
-                double minTime = Double.MAX_VALUE;
-                double maxTime = Double.MIN_VALUE;
+        // 🔹 Pick best route
+        RouteOption bestRoute = options.stream()
+                .max(Comparator.comparingDouble(RouteOption::getEfficiencyScore))
+                .orElse(null);
 
-                for (RouteOption option : options) {
-                double cost = option.getCost();
-                double time = option.getDurationMinutes();
+        options.remove(bestRoute);
 
-                if (cost < minCost) {
-                        minCost = cost;
-                }
-                if (cost > maxCost) {
-                        maxCost = cost;
-                }
+        // 🔹 Sort remaining routes (classic & predictable)
+        options.sort(
+                Comparator.comparingInt(RouteOption::getDurationMinutes)
+                          .thenComparingDouble(RouteOption::getCost)
+        );
 
-                if (time < minTime) {
-                        minTime = time;
-                }
-                if (time > maxTime) {
-                        maxTime = time;
-                }
-                }
+        return RouteSuggestionResponse.builder()
+                .bestRoute(bestRoute)
+                .otherRoutes(options)
+                .build();
+    }
 
-                if (maxCost == minCost)
-                        maxCost = minCost + 1; // Avoid divide by zero
-                if (maxTime == minTime)
-                        maxTime = minTime + 1;
+    // 🔹 Convert a route segment into an option
+    private RouteOption mapToOption(
+            DirectRoute route,
+            RouteStop startStop,
+            RouteStop endStop) {
 
-                for (RouteOption opt : options) {
-                        
-                        // Normalized Cost  & time
-                        double normCost = (opt.getCost() - minCost) / (maxCost - minCost);
+        double finalCost = route.getCost();
+        int finalDuration = route.getDurationMinutes();
 
-                       
-                        double normTime = (opt.getDurationMinutes() - minTime) / (maxTime - minTime);
+        int segmentsTraveled = endStop.getStopOrder() - startStop.getStopOrder();
+        int totalSegments = route.getStops().size() - 1;
 
-                        // Efficiency 
-                        double score = (timeWeight * normTime) + (costWeight * normCost);
-                        opt.setEfficiencyScore(score);
-                }
+        if (totalSegments > 0) {
+            double ratio = (double) segmentsTraveled / totalSegments;
+            finalCost = route.getCost() * ratio;
+            finalDuration = (int) (route.getDurationMinutes() * ratio);
         }
+
+        return RouteOption.builder()
+                .routeId(route.getId())
+                .transportType(route.getTransportType().name())
+                .operator(route.getOperator())
+                .cost(finalCost)
+                .durationMinutes(finalDuration)
+                .efficiencyScore(0.0)
+                .build();
+    }
+
+    // 🔹 Traditional min–max normalization with weighted score
+    private void normalizeAndScore(
+            List<RouteOption> options,
+            Double timeWeight,
+            Double costWeight) {
+
+        double minCost = options.stream().mapToDouble(RouteOption::getCost).min().orElse(0);
+        double maxCost = options.stream().mapToDouble(RouteOption::getCost).max().orElse(1);
+        double minTime = options.stream().mapToDouble(RouteOption::getDurationMinutes).min().orElse(0);
+        double maxTime = options.stream().mapToDouble(RouteOption::getDurationMinutes).max().orElse(1);
+
+        if (maxCost == minCost) maxCost++;
+        if (maxTime == minTime) maxTime++;
+
+        for (RouteOption opt : options) {
+            double normCost = (opt.getCost() - minCost) / (maxCost - minCost);
+            double normTime = (opt.getDurationMinutes() - minTime) / (maxTime - minTime);
+
+            double score = (timeWeight * normTime) + (costWeight * normCost);
+            opt.setEfficiencyScore(score);
+        }
+    }
 }
