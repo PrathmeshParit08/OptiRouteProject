@@ -28,6 +28,7 @@ public class RouteService {
     @Autowired
     private LocationService locationService;
 
+   
     @Cacheable(
         value = "routes",
         key = "#fromCity.toLowerCase() + '-' + #toCity.toLowerCase() + '-' + #timeWeight + '-' + #costWeight"
@@ -46,7 +47,7 @@ public class RouteService {
 
         List<RouteOption> options = new ArrayList<>();
 
-        // 🔹 Fetch all routes (traditional approach)
+        //  Fetch all routes (traditional approach)
         List<DirectRoute> allRoutes = directRouteRepository.findAll();
 
         for (DirectRoute route : allRoutes) {
@@ -79,17 +80,17 @@ public class RouteService {
                     .build();
         }
 
-        // 🔹 Normalize and score
+        //  Normalize and score
         normalizeAndScore(options, timeWeight, costWeight);
 
-        // 🔹 Pick best route
+        //  Pick best route
         RouteOption bestRoute = options.stream()
                 .max(Comparator.comparingDouble(RouteOption::getEfficiencyScore))
                 .orElse(null);
 
         options.remove(bestRoute);
 
-        // 🔹 Sort remaining routes (classic & predictable)
+        //  Sort remaining routes (classic & predictable)
         options.sort(
                 Comparator.comparingInt(RouteOption::getDurationMinutes)
                           .thenComparingDouble(RouteOption::getCost)
@@ -101,7 +102,7 @@ public class RouteService {
                 .build();
     }
 
-    // 🔹 Convert a route segment into an option
+    //  Convert a route segment into an option
     private RouteOption mapToOption(
             DirectRoute route,
             RouteStop startStop,
@@ -129,7 +130,7 @@ public class RouteService {
                 .build();
     }
 
-    // 🔹 Traditional min–max normalization with weighted score
+    //   min–max normalization with weighted score
     private void normalizeAndScore(
             List<RouteOption> options,
             Double timeWeight,

@@ -1,5 +1,8 @@
+package com.optiroute.service;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.optiroute.dto.PaymentRedirectResponse;
 import com.optiroute.model.DirectRoute;
@@ -17,6 +20,7 @@ public class PaymentService {
     @Autowired
     private PaymentRepository paymentRepository;
 
+    //  Initiate payment
     public PaymentRedirectResponse initiatePayment(Long routeId) {
 
         DirectRoute route = directRouteRepository.findById(routeId)
@@ -36,14 +40,54 @@ public class PaymentService {
                 .build();
     }
 
+    //  Confirm payment 
+    @Transactional
     public Payment confirmPayment(Long paymentId) {
 
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new RuntimeException("Payment not found"));
 
-        // MOCK confirmation
-        payment.setStatus(PaymentStatus.SUCCESS);
+        if (payment.getStatus() == PaymentStatus.SUCCESS) {
+            return payment; // idempotent
+        }
 
+        payment.setStatus(PaymentStatus.SUCCESS);
         return paymentRepository.save(payment);
+    }
+
+    //  Mark payment as FAILED
+    @Transactional
+    public Payment failPayment(Long paymentId) {
+
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new RuntimeException("Payment not found"));
+
+        if (payment.getStatus() == PaymentStatus.SUCCESS) {
+            throw new RuntimeException("Payment already successful");
+        }
+
+        payment.setStatus(PaymentStatus.FAILED);
+        return paymentRepository.save(payment);
+    }
+
+    //  Retry failed payment
+    @Transactional
+    public PaymentRedirectResponse retryPayment(Long paymentId) {
+
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new RuntimeException("Payment not found"));
+
+        if (payment.getStatus() != PaymentStatus.FAILED) {
+            throw new RuntimeException("Only failed payments can be retried");
+        }
+
+        payment.setStatus(PaymentStatus.RETRY);
+        paymentRepository.save(payment);
+
+        return PaymentRedirectResponse.builder()
+                .paymentUrl("/payment?paymentId=" + payment.getId())
+                .routeId(payment.getRouteId())
+                .amount(payment.getAmount())
+                .build();
     }
 }

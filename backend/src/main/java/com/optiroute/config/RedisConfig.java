@@ -36,13 +36,13 @@ public class RedisConfig {
 
         Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();
         
-        // Locations: 24 hours (Read heavy, changes rarely)
+        // Locations: 24 hours 
         cacheConfigurations.put("locations", defaultCacheConfig.entryTtl(Duration.ofHours(24)));
         
-        // Routes: 15 minutes (Dynamic, but good to cache for short term bursts)
+        // Routes: 15 minutes 
         cacheConfigurations.put("routes", defaultCacheConfig.entryTtl(Duration.ofMinutes(15)));
         
-        // Users: 1 hour (Profile data)
+        // Users: 1 hour 
         cacheConfigurations.put("users", defaultCacheConfig.entryTtl(Duration.ofHours(1)));
 
         return RedisCacheManager.builder(connectionFactory)
